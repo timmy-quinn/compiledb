@@ -44,20 +44,35 @@ def basename(stream):
         return os.path.basename(stream.name)
 
 
-def generate_json_compdb(instream=None, proj_dir=os.getcwd(), exclude_files=[], add_predefined_macros=False,
-                         use_full_path=False, command_style=False):
+def generate_json_compdb(
+    instream=None,
+    proj_dir=os.getcwd(),
+    exclude_files=[],
+    add_predefined_macros=False,
+    use_full_path=False,
+    command_style=False,
+):
     if not os.path.isdir(proj_dir):
         raise Error("Project dir '{}' does not exists!".format(proj_dir))
 
     logger.info("## Processing build commands from {}".format(basename(instream)))
-    result = parse_build_log(instream, proj_dir, exclude_files, add_predefined_macros=add_predefined_macros,
-                             use_full_path=use_full_path, command_style=command_style)
+    result = parse_build_log(
+        instream,
+        proj_dir,
+        exclude_files,
+        add_predefined_macros=add_predefined_macros,
+        use_full_path=use_full_path,
+        command_style=command_style,
+    )
     return result
 
 
 def write_json_compdb(compdb, outstream, force=False, pretty_output=True):
-    logger.info("## Writing compilation database with {} entries to {}".format(
-        len(compdb), basename(outstream)))
+    logger.info(
+        "## Writing compilation database with {} entries to {}".format(
+            len(compdb), basename(outstream)
+        )
+    )
 
     # We could truncate after reading, but here is easier to understand
     if not __is_stdout(outstream):
@@ -75,8 +90,11 @@ def load_json_compdb(outstream):
         # Read from beggining of file
         outstream.seek(0)
         compdb = json.load(outstream)
-        logger.info("## Loaded compilation database with {} entries from {}".format(
-            len(compdb), basename(outstream)))
+        logger.info(
+            "## Loaded compilation database with {} entries from {}".format(
+                len(compdb), basename(outstream)
+            )
+        )
         return compdb
     except Exception as e:
         logger.debug("## Failed to read previous {}: {}".format(basename(outstream), e))
@@ -85,25 +103,39 @@ def load_json_compdb(outstream):
 
 def merge_compdb(compdb, new_compdb, check_files=True):
     def gen_key(entry):
-        if 'directory' in entry:
-            return os.path.join(entry['directory'], entry['file'])
-        return entry['directory']
+        if "directory" in entry:
+            return os.path.join(entry["directory"], entry["file"])
+        return entry["directory"]
 
     def check_file(path):
         return True if not check_files else os.path.exists(path)
 
-    orig = {gen_key(c): c for c in compdb if 'file' in c}
-    new = {gen_key(c): c for c in new_compdb if 'file' in c}
+    orig = {gen_key(c): c for c in compdb if "file" in c}
+    new = {gen_key(c): c for c in new_compdb if "file" in c}
     orig.update(new)
     return [v for k, v in orig.items() if check_file(k)]
 
 
-def generate(infile, outfile, build_dir, exclude_files, overwrite=False, strict=False,
-             add_predefined_macros=False, use_full_path=False, command_style=False):
+def generate(
+    infile,
+    outfile,
+    build_dir,
+    exclude_files,
+    overwrite=False,
+    strict=False,
+    add_predefined_macros=False,
+    use_full_path=False,
+    command_style=False,
+):
     try:
-        r = generate_json_compdb(infile, proj_dir=build_dir, exclude_files=exclude_files,
-                                 add_predefined_macros=add_predefined_macros, use_full_path=use_full_path,
-                                 command_style=command_style)
+        r = generate_json_compdb(
+            infile,
+            proj_dir=build_dir,
+            exclude_files=exclude_files,
+            add_predefined_macros=add_predefined_macros,
+            use_full_path=use_full_path,
+            command_style=command_style,
+        )
         compdb = [] if overwrite else load_json_compdb(outfile)
         compdb = merge_compdb(compdb, r.compdb, strict)
         write_json_compdb(compdb, outfile)
