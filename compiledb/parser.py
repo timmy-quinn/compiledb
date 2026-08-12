@@ -30,6 +30,7 @@ cc_compile_regex = re.compile(r"^.*-?g?cc-?[0-9.]*$|^.*-?clang-?[0-9.]*$")
 cpp_compile_regex = re.compile(r"^.*-?[gc]\+\+-?[0-9.]*$|^.*-?clang\+\+-?[0-9.]*$")
 file_regex = re.compile(r"^.+\.c$|^.+\.cc$|^.+\.cpp$|^.+\.cxx$|^.+\.s$", re.IGNORECASE)
 compiler_wrappers = {"ccache", "icecc", "sccache"}
+file_expansion_regex = re.compile(r"@(\S+)|@'(.*?)'|@\"(.*?)\"")
 
 # Leverage `make --print-directory` option
 make_enter_dir = re.compile(r"^\s*make\[\d+\]: Entering directory [`\'\"](?P<dir>.*)[`\'\"]\s*$")
@@ -58,22 +59,29 @@ class Error(Exception):
     def __str__(self):
         return "Error: {}".format(self.msg)
 
-def preprocess_build_log(build_log): 
+def get_text_from_file(match):
+    with open(match.group(1), "r") as file:
+        inlined_text = file.read()
+        return inlined_text
+
+def file_expansion(line):
+    search_and_replace = True
+    while search_and_replace:
+        try:
+            line, replacement_count = re.subn(
+                    pattern=file_expansion_regex,
+                    repl=get_text_from_file,
+                    string=line)
+        except FileNotFoundError:
+            return line
+        search_and_replace = replacement_count > 0
+    return line
+
+def preprocess_build_log(build_log):
     new_build_log = []
-    inline_file_pattern = '@"(.*?)"'
-    
-    for line in build_log: 
-        result = re.search(inline_file_pattern, line)
-        while result is not None: 
-            inline_file_path = result.group(1)
-            with open(inline_file_path, "r") as file: 
-                inlined_text = file.read()
-            line = re.sub(pattern=inline_file_pattern, repl=inlined_text, string=line)
-            result = re.search(inline_file_pattern, line)
-        new_build_log += line.splitlines()
-
+    for line in build_log:
+        new_build_log.append(file_expansion(line))
     return new_build_log
-
 
 def parse_build_log(build_log, proj_dir, exclude_files, command_style=False, add_predefined_macros=False,
                     use_full_path=False, extra_wrappers=[]):
