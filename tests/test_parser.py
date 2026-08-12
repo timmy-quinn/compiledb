@@ -55,6 +55,71 @@ def test_trivial_build_command():
     }
 
 
+def test_trivial_build_command_with_file_expansion(tmp_path):
+    pwd = getcwd()
+    opt_file = tmp_path / "opts.txt"
+    options = "-o hello.o -c hello.c"
+    opt_file.write_text(options, encoding="utf-8")
+    build_log = [f"gcc @{opt_file}"]
+    result = parse_build_log(build_log, proj_dir=pwd, exclude_files=[])
+
+    assert result.count == 1
+    assert result.skipped == 0
+    assert len(result.compdb) == 1
+    assert result.compdb[0] == {
+        "directory": pwd,
+        "file": "hello.c",
+        "arguments": ["gcc", "-o", "hello.o", "-c", "hello.c"],
+    }
+
+def test_trivial_build_command_with_gcc_preprocess(tmp_path):
+    pwd = getcwd()
+    opt_file = tmp_path / "opts.txt"
+    options = "-o hello.o -c hello.c"
+    opt_file.write_text(options, encoding="utf-8")
+    build_log = [f"gcc @{opt_file}"]
+    result = parse_build_log(build_log, proj_dir=pwd, exclude_files=[])
+
+    assert result.count == 1
+    assert result.skipped == 0
+    assert len(result.compdb) == 1
+    assert result.compdb[0] == {
+        "directory": pwd,
+        "file": "hello.c",
+        "arguments": ["gcc", "-o", "hello.o", "-c", "hello.c"],
+    }
+
+
+def test_trivial_build_command_with_invalid_file_expansion(tmp_path):
+    pwd = getcwd()
+    build_log = [f"gcc @not_a_real_file.txt"]
+    result = parse_build_log(build_log, proj_dir=pwd, exclude_files=[])
+    assert result.count == 0
+    assert result.skipped == 1
+    assert len(result.compdb) == 0
+    assert result.compdb == []
+
+
+def test_trivial_build_command_with_file_expansion_nested(tmp_path):
+    pwd = getcwd()
+    opt_file_level0 = tmp_path / "opts0.txt"
+    opt_file_level1 = tmp_path / "opts1.txt"
+    opts_0 = f"-o hello.o @{opt_file_level1}"
+    opts_1 = "-c hello.c"
+    opt_file_level0.write_text(opts_0, encoding="utf-8")
+    opt_file_level1.write_text(opts_1, encoding="utf-8")
+    build_log = [f"gcc @{opt_file_level0}"]
+    result = parse_build_log(build_log, proj_dir=pwd, exclude_files=[])
+
+    assert result.count == 1
+    assert result.skipped == 0
+    assert len(result.compdb) == 1
+    assert result.compdb[0] == {
+        "directory": pwd,
+        "file": "hello.c",
+        "arguments": ["gcc", "-o", "hello.o", "-c", "hello.c"],
+    }
+
 def test_build_commands_with_version():
     pwd = getcwd()
     build_log = ['clang-5.0 -o hello.o -c hello.c']
